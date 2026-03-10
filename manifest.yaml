@@ -1,0 +1,44 @@
+version: 0.0.1
+type: plugin
+author: zhou
+name: sub2api-plugin
+label:
+  en_US: sub2api-plugin
+  ja_JP: sub2api-plugin
+  zh_Hans: sub2api-plugin
+  pt_BR: sub2api-plugin
+description:
+  en_US: '-'
+  ja_JP: '-'
+  zh_Hans: '-'
+  pt_BR: '-'
+icon: icon.svg
+icon_dark: icon-dark.svg
+resource:
+  memory: 268435456
+  permission:
+    model:
+      enabled: true
+      llm: true
+      text_embedding: false
+      rerank: false
+      tts: false
+      speech2text: false
+      moderation: false
+plugins:
+  models:
+    - provider/sub2api-plugin.yaml
+meta:
+  version: 0.0.1
+  arch:
+    - amd64
+    - arm64
+  runner:
+    language: python
+    version: "3.12"
+    entrypoint: main
+  minimum_dify_version: 1.0.0
+created_at: 2026-03-10T10:14:15.706295+08:00
+privacy: PRIVACY.md
+repo: '-'
+verified: false
