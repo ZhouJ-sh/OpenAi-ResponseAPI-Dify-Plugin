@@ -2,25 +2,26 @@ provider: sub2api-plugin
 label:
   en_US: "Sub2apiPlugin"
 description:
-  en_US: "Models provided by sub2api-plugin."
-  zh_Hans: "Sub2apiPlugin 提供的模型。"
-  ja_JP: "Sub2apiPluginが提供するモデル。"
+  en_US: "Dify LLM bridge for OpenAI-compatible /v1/responses endpoints."
+  zh_Hans: "面向 OpenAI 兼容 /v1/responses 接口的 Dify LLM 插件桥接。"
+  ja_JP: "OpenAI 互換の /v1/responses エンドポイント向け Dify LLM プラグインです。"
 icon_small:
-  en_US: "icon_s_en.svg"
+  en_US: "icon.svg"
 icon_large:
-  en_US: "icon_l_en.svg"
+  en_US: "icon.svg"
 background: "#E5E7EB"
 help:
   title:
-    en_US: "Get your API Key from sub2api-plugin"
-    zh_Hans: "从 Sub2apiPlugin 获取 API Key"
-    ja_JP: "Sub2apiPluginからAPIキーを取得"
+    en_US: "Configure the Responses endpoint"
+    zh_Hans: "配置 Responses 接口"
+    ja_JP: "Responses エンドポイントを設定"
   url:
-    en_US: "https://__put_your_url_here__/account/api-keys"
+    en_US: "/v1/responses"
+    zh_Hans: "/v1/responses"
+    ja_JP: "/v1/responses"
 supported_model_types:
   - llm
 configurate_methods:
-  - predefined-model
   - customizable-model
 model_credential_schema:
   model:
@@ -29,34 +30,46 @@ model_credential_schema:
       zh_Hans: 模型名称
       ja_JP: モデル名
     placeholder:
-      en_US: Enter your model name
-      zh_Hans: 输入模型名称
-      ja_JP: モデル名を入力してください
+      en_US: Enter full model name
+      zh_Hans: 输入完整模型名称
+      ja_JP: 完全なモデル名を入力してください
   credential_form_schemas:
-    - variable: openai_api_key
+    - variable: api_key
       label:
         en_US: API Key
+        zh_Hans: API Key
+        ja_JP: API Key
       type: secret-input
-      required: true
+      required: false
       placeholder:
         zh_Hans: 在此输入您的 API Key
         en_US: Enter your API Key
-provider_credential_schema:
-  credential_form_schemas:
-    - variable: openai_api_key
+        ja_JP: APIキーを入力してください
+    - variable: endpoint_url
       label:
-        en_US: API Key
-      type: secret-input
+        en_US: API endpoint URL
+        zh_Hans: API 接口地址
+        ja_JP: API エンドポイント URL
+      type: text-input
       required: true
       placeholder:
-        zh_Hans: 在此输入您的 API Key
-        en_US: Enter your API Key
-models:
-  llm:
-    predefined:
-      - "models/llm/*.yaml"
+        zh_Hans: 例如 https://your-host/v1
+        en_US: Base URL, for example https://your-host/v1
+        ja_JP: "例: https://your-host/v1"
+    - variable: context_size
+      label:
+        en_US: Context size
+        zh_Hans: 上下文长度
+        ja_JP: コンテキスト長
+      type: text-input
+      required: true
+      default: "4096"
+      placeholder:
+        en_US: Enter model context size
+        zh_Hans: 输入模型上下文长度
+        ja_JP: モデルのコンテキスト長を入力してください
 extra:
   python:
-    provider_source: provider/openai.py
+    provider_source: provider/sub2api-plugin.py
     model_sources:
       - "models/llm/llm.py"

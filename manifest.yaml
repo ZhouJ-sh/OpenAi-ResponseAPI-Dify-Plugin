@@ -8,10 +8,10 @@ label:
   zh_Hans: sub2api-plugin
   pt_BR: sub2api-plugin
 description:
-  en_US: '-'
-  ja_JP: '-'
-  zh_Hans: '-'
-  pt_BR: '-'
+  en_US: Dify LLM plugin bridge for OpenAI-compatible /v1/responses endpoints.
+  ja_JP: OpenAI 互換の /v1/responses エンドポイント向け Dify LLM プラグインです。
+  zh_Hans: 面向 OpenAI 兼容 /v1/responses 接口的 Dify LLM 插件桥接。
+  pt_BR: Plugin LLM do Dify para endpoints /v1/responses compatíveis com OpenAI.
 icon: icon.svg
 icon_dark: icon-dark.svg
 resource:
@@ -40,5 +40,4 @@ meta:
   minimum_dify_version: 1.0.0
 created_at: 2026-03-10T10:14:15.706295+08:00
 privacy: PRIVACY.md
-repo: '-'
 verified: false

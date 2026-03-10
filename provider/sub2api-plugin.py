@@ -1,27 +1,16 @@
-import logging
+# pyright: reportMissingImports=false, reportMissingTypeStubs=false, reportImplicitOverride=false
+
 from collections.abc import Mapping
 
 from dify_plugin import ModelProvider
-from dify_plugin.entities.model import ModelType
-from dify_plugin.errors.model import CredentialsValidateFailedError
-
-logger = logging.getLogger(__name__)
 
 
 class Sub2apiPluginModelProvider(ModelProvider):
-    def validate_provider_credentials(self, credentials: Mapping) -> None:
-        """
-        Validate provider credentials
-        if validate failed, raise exception
+    """Sub2api 的最小 provider 桥接实现。"""
 
-        :param credentials: provider credentials, credentials form defined in `provider_credential_schema`.
-        """
-        try:
-            pass
-        except CredentialsValidateFailedError as ex:
-            raise ex
-        except Exception as ex:
-            logger.exception(
-                f"{self.get_provider_schema().provider} credentials validate failed"
-            )
-            raise ex
+    def validate_provider_credentials(self, credentials: Mapping[str, object]) -> None:
+        """保持 provider 层无独立凭据校验，实际配置完全由 customizable model 表单承载。"""
+
+        # 当前插件只暴露 customizable-model 合同，provider 自身没有额外凭据表单。
+        del credentials
+        return None
