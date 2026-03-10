@@ -1,0 +1,25 @@
+data: {"type":"response.created","response":{"id":"resp_test","model":"gpt-4.1-mini","status":"in_progress"}}
+
+data: {"type":"response.output_item.added","item":{"id":"msg_test","type":"message","role":"assistant","status":"in_progress","content":[]}}
+
+data: {"type":"response.output_text.delta","item_id":"msg_test","output_index":0,"content_index":0,"delta":"hel"}
+
+data: {"type":"response.output_text.delta","item_id":"msg_test","output_index":0,"content_index":0,"delta":"lo"}
+
+data: {"type":"response.output_text.done","item_id":"msg_test","output_index":0,"content_index":0,"text":"hello"}
+
+data: {"type":"response.output_item.done","item":{"id":"msg_test","type":"message","role":"assistant","status":"completed","content":[{"type":"output_text","text":"hello"}]}}
+
+data: {"type":"response.output_item.added","item":{"id":"fc_test","type":"function_call","call_id":"call_weather","name":"get_weather","arguments":""}}
+
+data: {"type":"response.function_call_arguments.delta","item_id":"fc_test","output_index":1,"delta":"{\"city\":"}
+
+data: {"type":"response.function_call_arguments.delta","item_id":"fc_test","output_index":1,"delta":"\"Hangzhou\"}"}
+
+data: {"type":"response.function_call_arguments.done","item_id":"fc_test","output_index":1,"arguments":"{\"city\":\"Hangzhou\"}"}
+
+data: {"type":"response.output_item.done","item":{"id":"fc_test","type":"function_call","call_id":"call_weather","name":"get_weather","arguments":"{\"city\":\"Hangzhou\"}"}}
+
+data: {"type":"response.completed","response":{"id":"resp_test","model":"gpt-4.1-mini","status":"completed","usage":{"input_tokens":4,"output_tokens":6,"total_tokens":10}}}
+
+data: [DONE]
