@@ -1,137 +1,75 @@
-# Dify Plugin Development Guide
+# sub2api-plugin 开发说明
 
-Welcome to Dify plugin development! This guide will help you get started quickly.
+## 插件定位
 
-## Plugin Types
+`sub2api-plugin` 是一个 Dify LLM 插件，当前版本只桥接 OpenAI 兼容的 `/v1/responses` 接口。
 
-Dify plugins extend three main capabilities:
+- 仅支持 `customizable-model` 配置方式。
+- provider 层不再提供独立凭据表单。
+- 当前只面向 `/v1/responses`，不宣传其它旧接口。
 
-| Type | Description | Example |
-|------|-------------|---------|
-| **Tool** | Perform specific tasks | Google Search, Stable Diffusion |
-| **Model** | AI model integrations | OpenAI, Anthropic |
-| **Endpoint** | HTTP services | Custom APIs, integrations |
+## 配置说明
 
-You can create:
-- **Tool**: Tool provider with optional endpoints (e.g., Discord bot)
-- **Model**: Model provider only
-- **Extension**: Simple HTTP service
+模型配置在 Dify 的自定义模型表单中完成，最小字段如下：
 
-## Setup
+- `api_key`：目标接口所需的 API Key，可留空以兼容无鉴权代理。
+- `endpoint_url`：接口基地址，例如 `https://your-host/v1`。
+- `context_size`：模型上下文长度，例如 `4096` 或 `32768`。
 
-### Requirements
-- Python 3.11+
-- Dependencies: `pip install -r requirements.txt`
+调试环境变量放在项目根目录 `.env` 中，可从 `.env.example` 复制：
 
-## Development Process
-
-<details>
-<summary><b>1. Manifest Structure</b></summary>
-
-Edit `manifest.yaml` to describe your plugin:
-
-```yaml
-version: 0.1.0                  # Required: Plugin version
-type: plugin                    # Required: plugin or bundle
-author: YourOrganization        # Required: Organization name
-label:                          # Required: Multi-language names
-  en_US: Plugin Name
-  zh_Hans: 插件名称
-created_at: 2023-01-01T00:00:00Z # Required: Creation time (RFC3339)
-icon: assets/icon.png           # Required: Icon path
-
-# Resources and permissions
-resource:
-  memory: 268435456            # Max memory (bytes)
-  permission:
-    tool:
-      enabled: true            # Tool permission
-    model:
-      enabled: true            # Model permission
-      llm: true
-      text_embedding: false
-      # Other model types...
-    # Other permissions...
-
-# Extensions definition
-plugins:
-  tools:
-    - tools/my_tool.yaml       # Tool definition files
-  models:
-    - models/my_model.yaml     # Model definition files
-  endpoints:
-    - endpoints/my_api.yaml    # Endpoint definition files
-
-# Runtime metadata
-meta:
-  version: 0.0.1               # Manifest format version
-  arch:
-    - amd64
-    - arm64
-  runner:
-    language: python
-    version: "3.12"
-    entrypoint: main
+```env
+INSTALL_METHOD=remote
+REMOTE_INSTALL_URL=debug.dify.ai:5003
+REMOTE_INSTALL_KEY=your-debug-key
 ```
 
-**Restrictions:**
-- Cannot extend both tools and models
-- Must have at least one extension
-- Cannot extend both models and endpoints
-- Limited to one supplier per extension type
-</details>
+## 统一脚本入口
 
-<details>
-<summary><b>2. Implementation Examples</b></summary>
+### 测试
 
-Study these examples to understand plugin implementation:
-
-- [OpenAI](https://github.com/langgenius/dify-plugin-sdks/tree/main/python/examples/openai) - Model provider
-- [Google Search](https://github.com/langgenius/dify-plugin-sdks/tree/main/python/examples/google) - Tool provider
-- [Neko](https://github.com/langgenius/dify-plugin-sdks/tree/main/python/examples/neko) - Endpoint group
-</details>
-
-<details>
-<summary><b>3. Testing & Debugging</b></summary>
-
-1. Copy `.env.example` to `.env` and configure:
-   ```
-   INSTALL_METHOD=remote
-   REMOTE_INSTALL_URL=debug.dify.ai:5003
-   REMOTE_INSTALL_KEY=your-debug-key
-   ```
-
-2. Run your plugin: 
-   ```bash
-   python -m main
-   ```
-
-3. Refresh your Dify instance to see the plugin (marked as "debugging")
-</details>
-
-<details>
-<summary><b>4. Publishing</b></summary>
-
-#### Manual Packaging
 ```bash
-dify-plugin plugin package ./YOUR_PLUGIN_DIR
+bash scripts/test.sh
 ```
 
-#### Automated GitHub Workflow
+- 固定走 `uv run --project . pytest`。
+- 可继续追加 pytest 参数，例如 `bash scripts/test.sh tests/test_provider_schema.py -q`。
 
-Configure GitHub Actions to automate PR creation:
+### 调试
 
-1. Create a Personal Access Token for your forked repository
-2. Add it as `PLUGIN_ACTION` secret in your source repo
-3. Create `.github/workflows/plugin-publish.yml`
+```bash
+bash scripts/debug.sh
+```
 
-When you create a release, the action will:
-- Package your plugin
-- Create a PR to your fork
+- 先检查 `.env` 与必要环境变量。
+- 自动创建 `logs/`。
+- 最终通过 `uv run --project . python -m main` 启动插件。
+- 若环境缺失，会直接给出可操作提示，不抛 Python traceback。
 
-[Detailed workflow documentation](https://docs.dify.ai/plugins/publish-plugins/plugin-auto-publish-pr)
-</details>
+### 打包
 
-## Privacy Policy
+```bash
+bash scripts/package.sh
+```
 
-If publishing to the Marketplace, provide a privacy policy in [PRIVACY.md](PRIVACY.md).
+- 自动探测 `dify-plugin` 或 `dify` CLI。
+- 调用当前环境可用的 `plugin package` 命令。
+- 打包完成后输出可定位的 `.difypkg` 路径。
+
+### 真实端到端测试
+
+```bash
+API_BASE_URL=http://your-host:8080/v1 \
+API_KEY=sk-your-key \
+bash scripts/e2e.sh gpt-5.4
+```
+
+- 若不传模型名，脚本会先请求 `/models` 自动选择第一个可用模型。
+- 固定验证两条真实链路：非流式文本回复、流式 tool-call 回复。
+- 当前脚本不会向上游透传 `user` 字段，以兼容真实 sub2api 环境里该字段触发 `upstream_error` 的问题。
+
+## Manifest 约定
+
+- `manifest.yaml` 明确声明这是 `/v1/responses` LLM 插件。
+- 没有可信公开仓库地址时，不填 `repo` 字段，避免用伪造 URL 破坏打包校验。
+- provider 入口保持最小桥接，不延续模板里的 provider credential 校验残留。
