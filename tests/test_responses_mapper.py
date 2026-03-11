@@ -289,3 +289,150 @@ def test_mapper_keeps_first_turn_without_tool_result_in_native_shape() -> None:
             "id": "call_time",
         },
     ]
+
+
+def test_mapper_rewrites_gpt_5_4_reasoning_effort_and_verbosity_to_responses_shape() -> None:
+    llm = Sub2apiPluginLargeLanguageModel([])
+
+    payload = llm.build_responses_request_payload(
+        model="gpt-5.4",
+        credentials={},
+        prompt_messages=[UserPromptMessage(content="写一首关于代码的俳句")],
+        model_parameters={
+            "reasoning_effort": "low",
+            "verbosity": "high",
+        },
+        tools=None,
+        stop=None,
+        stream=False,
+        user=None,
+    )
+
+    assert payload == {
+        "model": "gpt-5.4",
+        "stream": False,
+        "reasoning": {"effort": "low"},
+        "text": {"verbosity": "high"},
+        "input": [
+            {
+                "role": "user",
+                "content": [{"type": "input_text", "text": "写一首关于代码的俳句"}],
+            }
+        ],
+    }
+
+
+def test_mapper_rejects_sampling_parameters_when_gpt_5_4_reasoning_is_not_none() -> None:
+    llm = Sub2apiPluginLargeLanguageModel([])
+
+    try:
+        llm.build_responses_request_payload(
+            model="gpt-5.4",
+            credentials={},
+            prompt_messages=[UserPromptMessage(content="hello")],
+            model_parameters={
+                "reasoning_effort": "medium",
+                "temperature": 0.3,
+            },
+            tools=None,
+            stop=None,
+            stream=False,
+            user=None,
+        )
+    except ValueError as exc:
+        assert str(exc) == "gpt-5.4 仅在 reasoning_effort=none 时支持 temperature/top_p。"
+    else:
+        raise AssertionError("gpt-5.4 在非 none 推理档位下应拒绝 temperature/top_p")
+
+
+def test_mapper_ignores_dify_default_sampling_parameters_for_gpt_5_4_reasoning_modes() -> None:
+    llm = Sub2apiPluginLargeLanguageModel([])
+
+    payload = llm.build_responses_request_payload(
+        model="gpt-5.4",
+        credentials={},
+        prompt_messages=[UserPromptMessage(content="hello")],
+        model_parameters={
+            "reasoning_effort": "low",
+            "temperature": 1,
+            "top_p": 1,
+        },
+        tools=None,
+        stop=None,
+        stream=False,
+        user=None,
+    )
+
+    assert payload == {
+        "model": "gpt-5.4",
+        "stream": False,
+        "reasoning": {"effort": "low"},
+        "input": [
+            {
+                "role": "user",
+                "content": [{"type": "input_text", "text": "hello"}],
+            }
+        ],
+    }
+
+
+def test_mapper_keeps_sampling_parameters_for_gpt_5_4_when_reasoning_effort_is_omitted() -> None:
+    llm = Sub2apiPluginLargeLanguageModel([])
+
+    payload = llm.build_responses_request_payload(
+        model="gpt-5.4",
+        credentials={},
+        prompt_messages=[UserPromptMessage(content="hello")],
+        model_parameters={
+            "temperature": 0.4,
+            "top_p": 0.8,
+        },
+        tools=None,
+        stop=None,
+        stream=False,
+        user=None,
+    )
+
+    assert payload == {
+        "model": "gpt-5.4",
+        "stream": False,
+        "temperature": 0.4,
+        "top_p": 0.8,
+        "input": [
+            {
+                "role": "user",
+                "content": [{"type": "input_text", "text": "hello"}],
+            }
+        ],
+    }
+
+
+def test_mapper_applies_gpt_5_4_rules_to_versioned_model_name() -> None:
+    llm = Sub2apiPluginLargeLanguageModel([])
+
+    payload = llm.build_responses_request_payload(
+        model="gpt-5.4-2026-03-05",
+        credentials={},
+        prompt_messages=[UserPromptMessage(content="hello")],
+        model_parameters={
+            "reasoning_effort": "xhigh",
+            "verbosity": "medium",
+        },
+        tools=None,
+        stop=None,
+        stream=False,
+        user=None,
+    )
+
+    assert payload == {
+        "model": "gpt-5.4-2026-03-05",
+        "stream": False,
+        "reasoning": {"effort": "xhigh"},
+        "text": {"verbosity": "medium"},
+        "input": [
+            {
+                "role": "user",
+                "content": [{"type": "input_text", "text": "hello"}],
+            }
+        ],
+    }

@@ -124,6 +124,66 @@ def test_customizable_runtime_schema_declares_chat_context_and_tool_features() -
     }
 
 
+def test_gpt_5_4_runtime_schema_exposes_supported_parameter_rules() -> None:
+    llm = Sub2apiPluginLargeLanguageModel([])
+    schema = llm.get_customizable_model_schema(
+        model="gpt-5.4",
+        credentials={"context_size": "32768"},
+    )
+
+    parameter_rules_by_name = {
+        parameter_rule.name: parameter_rule for parameter_rule in schema.parameter_rules
+    }
+    temperature_help = parameter_rules_by_name["temperature"].help
+    top_p_help = parameter_rules_by_name["top_p"].help
+    frequency_penalty_help = parameter_rules_by_name["frequency_penalty"].help
+    presence_penalty_help = parameter_rules_by_name["presence_penalty"].help
+    reasoning_effort_help = parameter_rules_by_name["reasoning_effort"].help
+
+    assert list(parameter_rules_by_name.keys()) == [
+        "temperature",
+        "top_p",
+        "frequency_penalty",
+        "presence_penalty",
+        "reasoning_effort",
+        "verbosity",
+    ]
+    assert parameter_rules_by_name["temperature"].use_template == "temperature"
+    assert parameter_rules_by_name["top_p"].use_template == "top_p"
+    assert parameter_rules_by_name["frequency_penalty"].use_template == "frequency_penalty"
+    assert parameter_rules_by_name["presence_penalty"].use_template == "presence_penalty"
+    assert temperature_help is not None
+    assert temperature_help.zh_Hans == (
+        "仅在推理努力程度为 none 时建议设置。若推理努力程度不是 none，OpenAI GPT-5.4 Responses API 不支持 temperature。"
+    )
+    assert top_p_help is not None
+    assert top_p_help.zh_Hans == (
+        "仅在推理努力程度为 none 时建议设置。若推理努力程度不是 none，OpenAI GPT-5.4 Responses API 不支持 top_p。"
+    )
+    assert frequency_penalty_help is not None
+    assert frequency_penalty_help.zh_Hans == (
+        "当前插件会按顶层字段透传该参数；OpenAI 官方文档尚未明确说明它会像 temperature/top_p 一样受推理努力程度限制。"
+    )
+    assert presence_penalty_help is not None
+    assert presence_penalty_help.zh_Hans == (
+        "当前插件会按顶层字段透传该参数；OpenAI 官方文档尚未明确说明它会像 temperature/top_p 一样受推理努力程度限制。"
+    )
+    assert parameter_rules_by_name["reasoning_effort"].default == "none"
+    assert parameter_rules_by_name["reasoning_effort"].options == [
+        "none",
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+    ]
+    assert reasoning_effort_help is not None
+    assert reasoning_effort_help.zh_Hans == (
+        "约束 gpt-5.4 的推理努力程度。支持 none、low、medium、high、xhigh；none 为低延迟模式。若取值不是 none，temperature 与 top_p 不应设置；frequency_penalty 与 presence_penalty 当前仍按顶层透传。"
+    )
+    assert parameter_rules_by_name["verbosity"].default == "medium"
+    assert parameter_rules_by_name["verbosity"].options == ["low", "medium", "high"]
+
+
 def test_provider_schema_scope_audit_responses_only_runtime_surface() -> None:
     provider_schema = load_provider_schema()
     manifest_schema = cast(dict[str, object], yaml.safe_load(MANIFEST_PATH.read_text(encoding="utf-8")))
@@ -150,3 +210,20 @@ def test_provider_schema_scope_audit_responses_only_runtime_surface() -> None:
     }
     assert all("/v1/messages" not in text for text in runtime_surface_texts)
     assert all("/v1/chat/completions" not in text for text in runtime_surface_texts)
+
+
+def test_readme_mentions_gpt_5_4_parameter_compatibility() -> None:
+    readme_text = README_PATH.read_text(encoding="utf-8")
+
+    assert "## gpt-5.4 参数兼容说明" in readme_text
+    assert "当 `reasoning_effort` 为 `none` 时，可以同时使用 `temperature` 与 `top_p`。" in readme_text
+    assert "当 `reasoning_effort` 不是 `none` 时，不应再设置 `temperature` 与 `top_p`。" in readme_text
+    assert "`frequency_penalty` 与 `presence_penalty` 当前仍按顶层字段透传。" in readme_text
+
+
+def test_guide_mentions_gpt_5_4_parameter_compatibility() -> None:
+    guide_text = GUIDE_PATH.read_text(encoding="utf-8")
+
+    assert "## gpt-5.4 参数兼容说明" in guide_text
+    assert "当 `reasoning_effort` 为 `none` 时，可以同时使用 `temperature` 与 `top_p`。" in guide_text
+    assert "当 `reasoning_effort` 不是 `none` 时，不应再设置 `temperature` 与 `top_p`。" in guide_text

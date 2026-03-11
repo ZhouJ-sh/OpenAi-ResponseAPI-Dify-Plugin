@@ -15,6 +15,8 @@ from dify_plugin.entities.model import (
     AIModelEntity,
     FetchFrom,
     ModelFeature,
+    ParameterRule,
+    ParameterType,
     ModelPropertyKey,
     ModelType,
 )
@@ -34,6 +36,11 @@ logger.setLevel(logging.INFO)
 if not logger.handlers:
     logger.addHandler(plugin_logger_handler)
 logger.propagate = False
+
+_GPT_5_4_REASONING_OPTIONS = ["none", "low", "medium", "high", "xhigh"]
+_GPT_5_4_VERBOSITY_OPTIONS = ["low", "medium", "high"]
+_GPT_5_4_ALLOWED_DEFAULT_TEMPERATURES = {0, 1}
+_GPT_5_4_ALLOWED_DEFAULT_TOP_P = 1
 
 
 def _hash_text(value: str) -> str:
@@ -632,6 +639,10 @@ class Sub2apiPluginLargeLanguageModel(LargeLanguageModel):
         filtered_model_parameters = {
             key: value for key, value in model_parameters.items() if value is not None and key != "tool_choice"
         }
+        normalized_model_parameters = self._normalize_responses_model_parameters(
+            model=model,
+            model_parameters=filtered_model_parameters,
+        )
         uses_tool_result_compatibility = any(isinstance(message, ToolPromptMessage) for message in prompt_messages)
         payload: dict[str, object] = {
             "model": model,
@@ -639,7 +650,7 @@ class Sub2apiPluginLargeLanguageModel(LargeLanguageModel):
             "input": self._convert_prompt_messages_to_sub2api_compatible_input(prompt_messages)
             if uses_tool_result_compatibility
             else self._convert_prompt_messages_to_responses_input(prompt_messages),
-            **filtered_model_parameters,
+            **normalized_model_parameters,
         }
 
         if "max_tokens" in payload:
@@ -655,6 +666,120 @@ class Sub2apiPluginLargeLanguageModel(LargeLanguageModel):
             payload["tool_choice"] = "auto"
 
         return payload
+
+    def _normalize_responses_model_parameters(
+        self,
+        model: str,
+        model_parameters: dict[str, object],
+    ) -> dict[str, object]:
+        normalized_model_parameters = dict(model_parameters)
+        if not self._is_gpt_5_4_model(model):
+            return normalized_model_parameters
+
+        reasoning_effort = normalized_model_parameters.pop("reasoning_effort", None)
+        verbosity = normalized_model_parameters.pop("verbosity", None)
+        if isinstance(reasoning_effort, str):
+            if reasoning_effort != "none":
+                self._drop_implicit_gpt_5_4_sampling_defaults(normalized_model_parameters)
+            self._validate_gpt_5_4_sampling_parameter_compatibility(
+                reasoning_effort=reasoning_effort,
+                model_parameters=normalized_model_parameters,
+            )
+            normalized_model_parameters["reasoning"] = {"effort": reasoning_effort}
+        if isinstance(verbosity, str):
+            normalized_model_parameters["text"] = {"verbosity": verbosity}
+        return normalized_model_parameters
+
+    def _validate_gpt_5_4_sampling_parameter_compatibility(
+        self,
+        reasoning_effort: str,
+        model_parameters: Mapping[str, object],
+    ) -> None:
+        if reasoning_effort == "none":
+            return
+        if "temperature" in model_parameters or "top_p" in model_parameters:
+            raise ValueError("gpt-5.4 仅在 reasoning_effort=none 时支持 temperature/top_p。")
+
+    def _drop_implicit_gpt_5_4_sampling_defaults(self, model_parameters: dict[str, object]) -> None:
+        temperature = model_parameters.get("temperature")
+        if temperature in _GPT_5_4_ALLOWED_DEFAULT_TEMPERATURES:
+            del model_parameters["temperature"]
+
+        top_p = model_parameters.get("top_p")
+        if top_p == _GPT_5_4_ALLOWED_DEFAULT_TOP_P:
+            del model_parameters["top_p"]
+
+    def _build_parameter_rules_for_model(self, model: str) -> list[ParameterRule]:
+        if not self._is_gpt_5_4_model(model):
+            return []
+
+        return [
+            ParameterRule(
+                name="temperature",
+                use_template="temperature",
+                label=I18nObject(zh_Hans="温度", en_US="Temperature"),
+                type=ParameterType.FLOAT,
+                help=I18nObject(
+                    zh_Hans="仅在推理努力程度为 none 时建议设置。若推理努力程度不是 none，OpenAI GPT-5.4 Responses API 不支持 temperature。",
+                    en_US="Recommended only when reasoning effort is none. When reasoning effort is not none, the OpenAI GPT-5.4 Responses API does not support temperature.",
+                ),
+            ),
+            ParameterRule(
+                name="top_p",
+                use_template="top_p",
+                label=I18nObject(zh_Hans="Top P", en_US="Top P"),
+                type=ParameterType.FLOAT,
+                help=I18nObject(
+                    zh_Hans="仅在推理努力程度为 none 时建议设置。若推理努力程度不是 none，OpenAI GPT-5.4 Responses API 不支持 top_p。",
+                    en_US="Recommended only when reasoning effort is none. When reasoning effort is not none, the OpenAI GPT-5.4 Responses API does not support top_p.",
+                ),
+            ),
+            ParameterRule(
+                name="frequency_penalty",
+                use_template="frequency_penalty",
+                label=I18nObject(zh_Hans="频率惩罚", en_US="Frequency Penalty"),
+                type=ParameterType.FLOAT,
+                help=I18nObject(
+                    zh_Hans="当前插件会按顶层字段透传该参数；OpenAI 官方文档尚未明确说明它会像 temperature/top_p 一样受推理努力程度限制。",
+                    en_US="The plugin currently forwards this parameter as a top-level field. OpenAI official docs do not yet clearly state that it is restricted by reasoning effort in the same way as temperature/top_p.",
+                ),
+            ),
+            ParameterRule(
+                name="presence_penalty",
+                use_template="presence_penalty",
+                label=I18nObject(zh_Hans="存在惩罚", en_US="Presence Penalty"),
+                type=ParameterType.FLOAT,
+                help=I18nObject(
+                    zh_Hans="当前插件会按顶层字段透传该参数；OpenAI 官方文档尚未明确说明它会像 temperature/top_p 一样受推理努力程度限制。",
+                    en_US="The plugin currently forwards this parameter as a top-level field. OpenAI official docs do not yet clearly state that it is restricted by reasoning effort in the same way as temperature/top_p.",
+                ),
+            ),
+            ParameterRule(
+                name="reasoning_effort",
+                label=I18nObject(zh_Hans="推理努力程度", en_US="Reasoning Effort"),
+                type=ParameterType.STRING,
+                help=I18nObject(
+                    zh_Hans="约束 gpt-5.4 的推理努力程度。支持 none、low、medium、high、xhigh；none 为低延迟模式。若取值不是 none，temperature 与 top_p 不应设置；frequency_penalty 与 presence_penalty 当前仍按顶层透传。",
+                    en_US="Controls reasoning effort for gpt-5.4. Supported values are none, low, medium, high, and xhigh; none is the low-latency mode. When the value is not none, temperature and top_p should not be set; frequency_penalty and presence_penalty are currently still forwarded as top-level fields.",
+                ),
+                default="none",
+                options=list(_GPT_5_4_REASONING_OPTIONS),
+            ),
+            ParameterRule(
+                name="verbosity",
+                label=I18nObject(zh_Hans="详细程度", en_US="Verbosity"),
+                type=ParameterType.STRING,
+                help=I18nObject(
+                    zh_Hans="约束 gpt-5.4 响应的详细程度。支持 low、medium、high，运行时会映射到 Responses API 的 text.verbosity。",
+                    en_US="Controls response verbosity for gpt-5.4. Supported values are low, medium, and high. The runtime maps it to text.verbosity for the Responses API.",
+                ),
+                default="medium",
+                options=list(_GPT_5_4_VERBOSITY_OPTIONS),
+            ),
+        ]
+
+    def _is_gpt_5_4_model(self, model: str) -> bool:
+        return model == "gpt-5.4" or model.startswith("gpt-5.4-")
 
     def _convert_prompt_messages_to_sub2api_compatible_input(
         self,
@@ -944,7 +1069,7 @@ class Sub2apiPluginLargeLanguageModel(LargeLanguageModel):
                 ModelPropertyKey.CONTEXT_SIZE: self._coerce_int(context_size),
                 ModelPropertyKey.MODE: LLMMode.CHAT.value,
             },
-            parameter_rules=[],
+            parameter_rules=self._build_parameter_rules_for_model(model),
         )
 
         return entity

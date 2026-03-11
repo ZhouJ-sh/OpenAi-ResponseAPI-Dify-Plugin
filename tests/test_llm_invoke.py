@@ -331,3 +331,56 @@ def test_invoke_raises_for_failed_stream_event() -> None:
                 user=None,
             )
         )
+
+
+def test_invoke_rewrites_gpt_5_4_parameters_before_calling_responses_api() -> None:
+    llm = Sub2apiPluginLargeLanguageModel([])
+    client = _FakeResponsesClient(
+        {
+            "id": "resp_test",
+            "model": "gpt-5.4",
+            "status": "completed",
+            "output": [
+                {
+                    "id": "msg_test",
+                    "type": "message",
+                    "role": "assistant",
+                    "content": [{"type": "output_text", "text": "ok"}],
+                }
+            ],
+            "usage": {"input_tokens": 2, "output_tokens": 1, "total_tokens": 3},
+        }
+    )
+    llm._create_responses_client = lambda credentials: client  # type: ignore[method-assign]
+
+    _ = llm._invoke(
+        model="gpt-5.4",
+        credentials={"endpoint_url": "https://example.com/v1", "api_key": "test-key"},
+        prompt_messages=[UserPromptMessage(content="hello")],
+        model_parameters={
+            "reasoning_effort": "none",
+            "verbosity": "low",
+            "temperature": 0.2,
+            "top_p": 0.9,
+            "frequency_penalty": 0.6,
+            "presence_penalty": 0.4,
+        },
+        tools=None,
+        stop=None,
+        stream=False,
+        user=None,
+    )
+
+    assert client.calls == [
+        {
+            "model": "gpt-5.4",
+            "stream": False,
+            "input": [{"role": "user", "content": [{"type": "input_text", "text": "hello"}]}],
+            "reasoning": {"effort": "none"},
+            "text": {"verbosity": "low"},
+            "temperature": 0.2,
+            "top_p": 0.9,
+            "frequency_penalty": 0.6,
+            "presence_penalty": 0.4,
+        }
+    ]
