@@ -394,6 +394,9 @@ class Sub2apiPluginLargeLanguageModel(LargeLanguageModel):
             if event_type == "response.output_text.done":
                 continue
 
+            if event_type == "keepalive":
+                continue
+
             if event_type in {"response.content_part.added", "response.content_part.done"}:
                 continue
 

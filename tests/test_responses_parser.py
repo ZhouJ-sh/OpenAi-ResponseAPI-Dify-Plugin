@@ -255,6 +255,29 @@ def test_parse_responses_stream_ignores_response_in_progress_event() -> None:
     assert chunks[-1].delta.finish_reason == "stop"
 
 
+def test_parse_responses_stream_ignores_keepalive_event() -> None:
+    llm = Sub2apiPluginLargeLanguageModel([])
+    response_lines = [
+        'data: {"type":"response.created","response":{"id":"resp_test","model":"gpt-4.1-mini","status":"in_progress"}}',
+        'data: {"type":"keepalive"}',
+        'data: {"type":"response.output_text.delta","item_id":"msg_test","delta":"hello"}',
+        'data: {"type":"response.completed","response":{"id":"resp_test","model":"gpt-4.1-mini","status":"completed","usage":{"input_tokens":1,"output_tokens":1,"total_tokens":2}}}',
+        "data: [DONE]",
+    ]
+
+    chunks = list(
+        llm._parse_responses_stream(
+            model="gpt-4.1-mini",
+            credentials={},
+            prompt_messages=[UserPromptMessage(content="hello")],
+            response_lines=response_lines,
+        )
+    )
+
+    assert [chunk.delta.message.content for chunk in chunks[:-1]] == ["hello"]
+    assert chunks[-1].delta.finish_reason == "stop"
+
+
 def test_parse_responses_stream_ignores_content_part_events() -> None:
     llm = Sub2apiPluginLargeLanguageModel([])
     response_lines = [
