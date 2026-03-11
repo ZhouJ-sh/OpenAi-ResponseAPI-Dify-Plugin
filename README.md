@@ -1,6 +1,6 @@
-# sub2api-dify-plugin
+# OpenAi-ResponseAPI-Dify-Plugin
 
-一个面向 `sub2api` / OpenAI-compatible `/v1/responses` 接口的 Dify LLM 插件。
+`OpenAi-ResponseAPI-Dify-Plugin` 是一个面向 `sub2api` / OpenAI-compatible `/v1/responses` 接口的 Dify LLM 插件。
 
 ## 当前能力
 
@@ -14,8 +14,8 @@
 ## 兼容范围
 
 - 当前只面向 HTTP `/v1/responses`
-- 不支持 `/v1/chat/completions`
-- 不支持 `/v1/messages`
+- 不支持旧版对话接口
+- 不支持其它非 Responses 消息接口
 - 当前不会向上游透传 `user` 字段，以兼容部分真实 `sub2api` 环境中的上游限制
 
 ## 为什么有“续链兼容转换”
@@ -37,6 +37,14 @@
 - `api_key`：目标接口所需的 API Key，可留空以兼容无鉴权代理
 - `endpoint_url`：接口基地址，例如 `https://your-host/v1`
 - `context_size`：模型上下文长度，例如 `4096` 或 `32768`
+
+## gpt-5.4 参数兼容说明
+
+- 当 `reasoning_effort` 为 `none` 时，可以同时使用 `temperature` 与 `top_p`。
+- 当 `reasoning_effort` 不是 `none` 时，不应再设置 `temperature` 与 `top_p`。
+- Dify 的调试或工作流默认参数可能会带入 `temperature` / `top_p`；插件运行时会尽量剔除常见默认值，避免误触发上游限制。
+- `frequency_penalty` 与 `presence_penalty` 当前仍按顶层字段透传。
+- 截至目前，OpenAI 官方文档尚未明确说明 `frequency_penalty` 与 `presence_penalty` 会像 `temperature` / `top_p` 一样受 `reasoning_effort` 限制。
 
 ## 脚本入口
 

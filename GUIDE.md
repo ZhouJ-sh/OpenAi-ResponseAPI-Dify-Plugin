@@ -1,8 +1,8 @@
-# sub2api-plugin 开发说明
+# OpenAi-ResponseAPI-Dify-Plugin 开发说明
 
 ## 插件定位
 
-`sub2api-plugin` 是一个 Dify LLM 插件，当前版本只桥接 OpenAI 兼容的 `/v1/responses` 接口。
+`OpenAi-ResponseAPI-Dify-Plugin` 是一个 Dify LLM 插件，当前版本只桥接 OpenAI 兼容的 `/v1/responses` 接口。
 
 - 仅支持 `customizable-model` 配置方式。
 - provider 层不再提供独立凭据表单。
@@ -15,6 +15,13 @@
 - `api_key`：目标接口所需的 API Key，可留空以兼容无鉴权代理。
 - `endpoint_url`：接口基地址，例如 `https://your-host/v1`。
 - `context_size`：模型上下文长度，例如 `4096` 或 `32768`。
+
+## gpt-5.4 参数兼容说明
+
+- 当 `reasoning_effort` 为 `none` 时，可以同时使用 `temperature` 与 `top_p`。
+- 当 `reasoning_effort` 不是 `none` 时，不应再设置 `temperature` 与 `top_p`。
+- 插件参数 UI 会在 `reasoning_effort` 不是 `none` 时自动隐藏 `temperature` 与 `top_p`，并清理已存在的这两个参数值。
+- `frequency_penalty` 与 `presence_penalty` 当前仍按顶层字段透传。
 
 调试环境变量放在项目根目录 `.env` 中，可从 `.env.example` 复制：
 
