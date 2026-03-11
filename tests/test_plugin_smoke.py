@@ -41,6 +41,8 @@ class _PytestProtocol(Protocol):
 
 pytest = cast(_PytestProtocol, cast(object, importlib.import_module("pytest")))
 
+from models.llm.llm import _ResponsesHTTPClient
+
 
 class _RecordedRequest:
     """记录 fake Responses 服务端收到的请求，供 smoke 断言协议路径与 payload。"""
@@ -192,7 +194,15 @@ def test_test_script_uses_uv_run_pytest(repo_root: Path) -> None:
     script_path = repo_root / "scripts" / "test.sh"
     script_content = script_path.read_text(encoding="utf-8")
 
-    assert "uv run --project . pytest" in script_content
+    assert "uv run --project . python -m pytest" in script_content
+
+
+def test_responses_http_client_uses_fixed_user_agent() -> None:
+    client = _ResponsesHTTPClient(endpoint_url="https://example.com/v1", api_key="test-key")
+
+    headers = client._build_headers(stream=False)
+
+    assert headers["User-Agent"] == "Codex Desktop/0.108.0-alpha.12 (Mac OS 26.3.0; arm64) unknown (Codex Desktop; 26.305.950)"
 
 
 def test_plugin_runner_can_start_from_source_tree(repo_root: Path) -> None:
@@ -247,4 +257,3 @@ def test_plugin_runner_invokes_non_stream_and_stream_tool_call(repo_root: Path) 
     assert fake_server.recorded_requests[0].payload["stream"] is False
     assert fake_server.recorded_requests[1].payload["stream"] is True
     assert fake_server.recorded_requests[1].payload["tool_choice"] == "auto"
-

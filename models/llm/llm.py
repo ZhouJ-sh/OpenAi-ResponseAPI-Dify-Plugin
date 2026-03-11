@@ -41,6 +41,7 @@ _GPT_5_4_REASONING_OPTIONS = ["none", "low", "medium", "high", "xhigh"]
 _GPT_5_4_VERBOSITY_OPTIONS = ["low", "medium", "high"]
 _GPT_5_4_ALLOWED_DEFAULT_TEMPERATURES = {0, 1}
 _GPT_5_4_ALLOWED_DEFAULT_TOP_P = 1
+_REMOTE_API_USER_AGENT = "Codex Desktop/0.108.0-alpha.12 (Mac OS 26.3.0; arm64) unknown (Codex Desktop; 26.305.950)"
 
 
 def _hash_text(value: str) -> str:
@@ -217,6 +218,7 @@ class _ResponsesHTTPClient:
         headers = {
             "Content-Type": "application/json",
             "Accept": "text/event-stream" if stream else "application/json",
+            "User-Agent": _REMOTE_API_USER_AGENT,
         }
         if self._api_key:
             headers["Authorization"] = f"Bearer {self._api_key}"
