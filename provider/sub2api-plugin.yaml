@@ -1,6 +1,8 @@
 provider: sub2api-plugin
 label:
-  en_US: "Sub2apiPlugin"
+  en_US: "OpenAi-ResponseAPI-Dify-Plugin"
+  zh_Hans: "OpenAi-ResponseAPI-Dify-Plugin"
+  ja_JP: "OpenAi-ResponseAPI-Dify-Plugin"
 description:
   en_US: "Dify LLM bridge for OpenAI-compatible /v1/responses endpoints."
   zh_Hans: "面向 OpenAI 兼容 /v1/responses 接口的 Dify LLM 插件桥接。"

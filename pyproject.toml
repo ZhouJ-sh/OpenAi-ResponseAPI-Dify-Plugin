@@ -1,7 +1,7 @@
 [project]
-name = "sub2api-plugin"
-version = "0.0.1"
-description = "sub2api plugin"
+name = "openai-responseapi-dify-plugin"
+version = "0.0.2"
+description = "OpenAi-ResponseAPI-Dify-Plugin"
 requires-python = ">=3.12"
 license = { text = "MIT" }
 dependencies = [

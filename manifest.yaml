@@ -1,12 +1,12 @@
-version: 0.0.1
+version: 0.0.2
 type: plugin
 author: zhou
-name: sub2api-plugin
+name: OpenAi-ResponseAPI-Dify-Plugin
 label:
-  en_US: sub2api-plugin
-  ja_JP: sub2api-plugin
-  zh_Hans: sub2api-plugin
-  pt_BR: sub2api-plugin
+  en_US: OpenAi-ResponseAPI-Dify-Plugin
+  ja_JP: OpenAi-ResponseAPI-Dify-Plugin
+  zh_Hans: OpenAi-ResponseAPI-Dify-Plugin
+  pt_BR: OpenAi-ResponseAPI-Dify-Plugin
 description:
   en_US: Dify LLM plugin bridge for OpenAI-compatible /v1/responses endpoints.
   ja_JP: OpenAI 互換の /v1/responses エンドポイント向け Dify LLM プラグインです。
@@ -29,7 +29,7 @@ plugins:
   models:
     - provider/sub2api-plugin.yaml
 meta:
-  version: 0.0.1
+  version: 0.0.2
   arch:
     - amd64
     - arm64
