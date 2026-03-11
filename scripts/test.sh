@@ -2,4 +2,4 @@
 
 set -eu
 
-uv run --project . pytest "$@"
+uv run --project . python -m pytest "$@"
