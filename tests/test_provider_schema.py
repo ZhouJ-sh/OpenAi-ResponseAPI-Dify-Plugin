@@ -41,6 +41,7 @@ class ExtraSchema(TypedDict):
 
 
 class ProviderSchemaRequired(TypedDict):
+    name: str
     description: I18nSchema
     supported_model_types: list[str]
     configurate_methods: list[str]
@@ -61,7 +62,9 @@ def load_provider_schema() -> ProviderSchema:
 
 def test_provider_schema_only_keeps_responses_customizable_contract() -> None:
     provider_schema = load_provider_schema()
+    manifest_schema = cast(dict[str, object], yaml.safe_load(MANIFEST_PATH.read_text(encoding="utf-8")))
 
+    assert manifest_schema["name"] == "openai-responseapi-dify-plugin"
     assert provider_schema["supported_model_types"] == ["llm"]
     assert provider_schema["configurate_methods"] == ["customizable-model"]
     assert provider_schema["extra"]["python"]["provider_source"] == (

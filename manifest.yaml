@@ -1,7 +1,7 @@
 version: 0.0.2
 type: plugin
 author: zhou
-name: OpenAi-ResponseAPI-Dify-Plugin
+name: openai-responseapi-dify-plugin
 label:
   en_US: OpenAi-ResponseAPI-Dify-Plugin
   ja_JP: OpenAi-ResponseAPI-Dify-Plugin
