@@ -1,6 +1,6 @@
 # OpenAi-ResponseAPI-Dify-Plugin
 
-`OpenAi-ResponseAPI-Dify-Plugin` 是一个面向 `sub2api` / OpenAI-compatible `/v1/responses` 接口的 Dify LLM 插件。
+`OpenAi-ResponseAPI-Dify-Plugin` 是一个面向 OpenAi `/v1/responses` 接口的 Dify LLM 插件。支持`sub2api`转发。
 
 ## 当前能力
 
@@ -10,6 +10,7 @@
 - 支持流式文本回复
 - 支持工具调用
 - 支持工具结果续链兼容转换
+- 仅在`sub2api`测试验证
 
 ## 兼容范围
 
