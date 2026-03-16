@@ -127,6 +127,35 @@ def test_customizable_runtime_schema_declares_chat_context_and_tool_features() -
     }
 
 
+def test_default_runtime_schema_exposes_structured_output_parameter_rules() -> None:
+    llm = Sub2apiPluginLargeLanguageModel([])
+    schema = llm.get_customizable_model_schema(
+        model="gpt-4.1-mini",
+        credentials={"context_size": "32768"},
+    )
+
+    parameter_rules_by_name = {
+        parameter_rule.name: parameter_rule for parameter_rule in schema.parameter_rules
+    }
+
+    assert list(parameter_rules_by_name.keys()) == [
+        "temperature",
+        "top_p",
+        "frequency_penalty",
+        "presence_penalty",
+        "max_tokens",
+        "response_format",
+        "json_schema",
+    ]
+    assert parameter_rules_by_name["temperature"].use_template == "temperature"
+    assert parameter_rules_by_name["top_p"].use_template == "top_p"
+    assert parameter_rules_by_name["frequency_penalty"].use_template == "frequency_penalty"
+    assert parameter_rules_by_name["presence_penalty"].use_template == "presence_penalty"
+    assert parameter_rules_by_name["max_tokens"].use_template == "max_tokens"
+    assert parameter_rules_by_name["response_format"].options == ["text", "json_object", "json_schema"]
+    assert parameter_rules_by_name["json_schema"].use_template == "json_schema"
+
+
 def test_gpt_5_4_runtime_schema_exposes_supported_parameter_rules() -> None:
     llm = Sub2apiPluginLargeLanguageModel([])
     schema = llm.get_customizable_model_schema(
@@ -148,6 +177,9 @@ def test_gpt_5_4_runtime_schema_exposes_supported_parameter_rules() -> None:
         "top_p",
         "frequency_penalty",
         "presence_penalty",
+        "max_tokens",
+        "response_format",
+        "json_schema",
         "reasoning_effort",
         "verbosity",
     ]
@@ -155,6 +187,9 @@ def test_gpt_5_4_runtime_schema_exposes_supported_parameter_rules() -> None:
     assert parameter_rules_by_name["top_p"].use_template == "top_p"
     assert parameter_rules_by_name["frequency_penalty"].use_template == "frequency_penalty"
     assert parameter_rules_by_name["presence_penalty"].use_template == "presence_penalty"
+    assert parameter_rules_by_name["max_tokens"].use_template == "max_tokens"
+    assert parameter_rules_by_name["response_format"].options == ["text", "json_schema"]
+    assert parameter_rules_by_name["json_schema"].use_template == "json_schema"
     assert temperature_help is not None
     assert temperature_help.zh_Hans == (
         "仅在推理努力程度为 none 时建议设置。若推理努力程度不是 none，OpenAI GPT-5.4 Responses API 不支持 temperature。"

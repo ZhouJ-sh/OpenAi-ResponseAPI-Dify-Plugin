@@ -436,3 +436,190 @@ def test_mapper_applies_gpt_5_4_rules_to_versioned_model_name() -> None:
             }
         ],
     }
+
+
+def test_mapper_maps_text_response_format_to_responses_text_format() -> None:
+    llm = Sub2apiPluginLargeLanguageModel([])
+
+    payload = llm.build_responses_request_payload(
+        model="gpt-4.1-mini",
+        credentials={},
+        prompt_messages=[UserPromptMessage(content="hello")],
+        model_parameters={"response_format": "text"},
+        tools=None,
+        stop=None,
+        stream=False,
+        user=None,
+    )
+
+    assert payload == {
+        "model": "gpt-4.1-mini",
+        "stream": False,
+        "text": {"format": {"type": "text"}},
+        "input": [
+            {
+                "role": "user",
+                "content": [{"type": "input_text", "text": "hello"}],
+            }
+        ],
+    }
+
+
+def test_mapper_maps_json_object_response_format_to_responses_text_format() -> None:
+    llm = Sub2apiPluginLargeLanguageModel([])
+
+    payload = llm.build_responses_request_payload(
+        model="gpt-4.1-mini",
+        credentials={},
+        prompt_messages=[UserPromptMessage(content="hello")],
+        model_parameters={"response_format": "json_object"},
+        tools=None,
+        stop=None,
+        stream=False,
+        user=None,
+    )
+
+    assert payload == {
+        "model": "gpt-4.1-mini",
+        "stream": False,
+        "text": {"format": {"type": "json_object"}},
+        "input": [
+            {
+                "role": "user",
+                "content": [{"type": "input_text", "text": "hello"}],
+            }
+        ],
+    }
+
+
+def test_mapper_maps_json_schema_to_responses_text_format() -> None:
+    llm = Sub2apiPluginLargeLanguageModel([])
+
+    payload = llm.build_responses_request_payload(
+        model="gpt-4.1-mini",
+        credentials={},
+        prompt_messages=[UserPromptMessage(content="提取城市和温度")],
+        model_parameters={
+            "response_format": "json_schema",
+            "json_schema": '{"type":"object","properties":{"city":{"type":"string"},"temperature":{"type":"number"}},"required":["city","temperature"]}',
+        },
+        tools=None,
+        stop=None,
+        stream=False,
+        user=None,
+    )
+
+    assert payload == {
+        "model": "gpt-4.1-mini",
+        "stream": False,
+        "text": {
+            "format": {
+                "type": "json_schema",
+                "name": "structured_output",
+                "schema": {
+                    "type": "object",
+                    "properties": {
+                        "city": {"type": "string"},
+                        "temperature": {"type": "number"},
+                    },
+                    "required": ["city", "temperature"],
+                },
+                "strict": True,
+            }
+        },
+        "input": [
+            {
+                "role": "user",
+                "content": [{"type": "input_text", "text": "提取城市和温度"}],
+            }
+        ],
+    }
+
+
+def test_mapper_merges_gpt_5_4_verbosity_with_structured_output() -> None:
+    llm = Sub2apiPluginLargeLanguageModel([])
+
+    payload = llm.build_responses_request_payload(
+        model="gpt-5.4",
+        credentials={},
+        prompt_messages=[UserPromptMessage(content="提取摘要")],
+        model_parameters={
+            "response_format": "json_schema",
+            "json_schema": '{"name":"summary","schema":{"type":"object","properties":{"answer":{"type":"string"}},"required":["answer"]},"strict":false}',
+            "verbosity": "high",
+        },
+        tools=None,
+        stop=None,
+        stream=False,
+        user=None,
+    )
+
+    assert payload == {
+        "model": "gpt-5.4",
+        "stream": False,
+        "text": {
+            "verbosity": "high",
+            "format": {
+                "type": "json_schema",
+                "name": "summary",
+                "schema": {
+                    "type": "object",
+                    "properties": {"answer": {"type": "string"}},
+                    "required": ["answer"],
+                },
+                "strict": False,
+            },
+        },
+        "input": [
+            {
+                "role": "user",
+                "content": [{"type": "input_text", "text": "提取摘要"}],
+            }
+        ],
+    }
+
+
+def test_mapper_rejects_json_schema_without_json_schema_response_format() -> None:
+    llm = Sub2apiPluginLargeLanguageModel([])
+
+    try:
+        llm.build_responses_request_payload(
+            model="gpt-4.1-mini",
+            credentials={},
+            prompt_messages=[UserPromptMessage(content="hello")],
+            model_parameters={
+                "response_format": "text",
+                "json_schema": '{"type":"object"}',
+            },
+            tools=None,
+            stop=None,
+            stream=False,
+            user=None,
+        )
+    except ValueError as exc:
+        assert str(exc) == "json_schema 仅在 response_format=json_schema 时可用。"
+    else:
+        raise AssertionError("response_format 不是 json_schema 时应拒绝 json_schema 参数")
+
+
+def test_mapper_rejects_invalid_json_schema_string() -> None:
+    llm = Sub2apiPluginLargeLanguageModel([])
+
+    try:
+        llm.build_responses_request_payload(
+            model="gpt-4.1-mini",
+            credentials={},
+            prompt_messages=[UserPromptMessage(content="hello")],
+            model_parameters={
+                "response_format": "json_schema",
+                "json_schema": "{not-json}",
+            },
+            tools=None,
+            stop=None,
+            stream=False,
+            user=None,
+        )
+    except ValueError as exc:
+        assert str(exc) == "not correct json_schema format: {not-json}"
+    else:
+        raise AssertionError("非法 json_schema 应抛出 ValueError")

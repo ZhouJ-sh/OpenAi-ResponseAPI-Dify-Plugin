@@ -41,6 +41,7 @@ _GPT_5_4_REASONING_OPTIONS = ["none", "low", "medium", "high", "xhigh"]
 _GPT_5_4_VERBOSITY_OPTIONS = ["low", "medium", "high"]
 _GPT_5_4_ALLOWED_DEFAULT_TEMPERATURES = {0, 1}
 _GPT_5_4_ALLOWED_DEFAULT_TOP_P = 1
+_DEFAULT_STRUCTURED_OUTPUT_NAME = "structured_output"
 _REMOTE_API_USER_AGENT = "Codex Desktop/0.108.0-alpha.12 (Mac OS 26.3.0; arm64) unknown (Codex Desktop; 26.305.950)"
 
 
@@ -678,22 +679,83 @@ class Sub2apiPluginLargeLanguageModel(LargeLanguageModel):
         model_parameters: dict[str, object],
     ) -> dict[str, object]:
         normalized_model_parameters = dict(model_parameters)
-        if not self._is_gpt_5_4_model(model):
-            return normalized_model_parameters
+        text_config = self._normalize_responses_text_config(normalized_model_parameters)
 
-        reasoning_effort = normalized_model_parameters.pop("reasoning_effort", None)
-        verbosity = normalized_model_parameters.pop("verbosity", None)
-        if isinstance(reasoning_effort, str):
-            if reasoning_effort != "none":
-                self._drop_implicit_gpt_5_4_sampling_defaults(normalized_model_parameters)
-            self._validate_gpt_5_4_sampling_parameter_compatibility(
-                reasoning_effort=reasoning_effort,
-                model_parameters=normalized_model_parameters,
-            )
-            normalized_model_parameters["reasoning"] = {"effort": reasoning_effort}
-        if isinstance(verbosity, str):
-            normalized_model_parameters["text"] = {"verbosity": verbosity}
+        if self._is_gpt_5_4_model(model):
+            reasoning_effort = normalized_model_parameters.pop("reasoning_effort", None)
+            verbosity = normalized_model_parameters.pop("verbosity", None)
+            if isinstance(reasoning_effort, str):
+                if reasoning_effort != "none":
+                    self._drop_implicit_gpt_5_4_sampling_defaults(normalized_model_parameters)
+                self._validate_gpt_5_4_sampling_parameter_compatibility(
+                    reasoning_effort=reasoning_effort,
+                    model_parameters=normalized_model_parameters,
+                )
+                normalized_model_parameters["reasoning"] = {"effort": reasoning_effort}
+            if isinstance(verbosity, str):
+                text_config["verbosity"] = verbosity
+        else:
+            normalized_model_parameters.pop("reasoning_effort", None)
+            normalized_model_parameters.pop("verbosity", None)
+
+        if text_config:
+            normalized_model_parameters["text"] = text_config
+
         return normalized_model_parameters
+
+    def _normalize_responses_text_config(self, model_parameters: dict[str, object]) -> dict[str, object]:
+        text_config = dict(cast(Mapping[str, object], model_parameters.pop("text", {})))
+        response_format = model_parameters.pop("response_format", None)
+        json_schema = model_parameters.pop("json_schema", None)
+
+        if json_schema is not None and response_format != "json_schema":
+            raise ValueError("json_schema 仅在 response_format=json_schema 时可用。")
+
+        if response_format == "text":
+            text_config["format"] = {"type": "text"}
+        elif response_format == "json_object":
+            text_config["format"] = {"type": "json_object"}
+        elif response_format == "json_schema":
+            text_config["format"] = self._build_responses_json_schema_format(json_schema)
+        elif isinstance(response_format, str) and response_format:
+            text_config["format"] = {"type": response_format}
+
+        return text_config
+
+    def _build_responses_json_schema_format(self, json_schema: object) -> dict[str, object]:
+        if json_schema is None:
+            raise ValueError("Must define JSON Schema when the response format is json_schema")
+
+        parsed_schema: object = json_schema
+        if isinstance(json_schema, str):
+            try:
+                parsed_schema = json.loads(json_schema)
+            except json.JSONDecodeError as exc:
+                raise ValueError(f"not correct json_schema format: {json_schema}") from exc
+
+        if not isinstance(parsed_schema, Mapping):
+            raise ValueError(f"not correct json_schema format: {json_schema}")
+
+        normalized_schema_payload = dict(parsed_schema)
+        if normalized_schema_payload.get("type") == "json_schema":
+            normalized_schema_payload.pop("type", None)
+
+        wrapped_schema = normalized_schema_payload.get("schema")
+        if isinstance(wrapped_schema, Mapping):
+            schema = dict(wrapped_schema)
+            name = normalized_schema_payload.get("name")
+            strict = normalized_schema_payload.get("strict", True)
+        else:
+            schema = dict(normalized_schema_payload)
+            name = normalized_schema_payload.get("name", _DEFAULT_STRUCTURED_OUTPUT_NAME)
+            strict = normalized_schema_payload.get("strict", True)
+
+        return {
+            "type": "json_schema",
+            "name": name if isinstance(name, str) and name else _DEFAULT_STRUCTURED_OUTPUT_NAME,
+            "schema": schema,
+            "strict": strict if isinstance(strict, bool) else True,
+        }
 
     def _validate_gpt_5_4_sampling_parameter_compatibility(
         self,
@@ -715,10 +777,8 @@ class Sub2apiPluginLargeLanguageModel(LargeLanguageModel):
             del model_parameters["top_p"]
 
     def _build_parameter_rules_for_model(self, model: str) -> list[ParameterRule]:
-        if not self._is_gpt_5_4_model(model):
-            return []
-
-        return [
+        response_format_options = ["text", "json_schema"] if self._is_gpt_5_4_model(model) else ["text", "json_object", "json_schema"]
+        parameter_rules = [
             ParameterRule(
                 name="temperature",
                 use_template="temperature",
@@ -759,6 +819,30 @@ class Sub2apiPluginLargeLanguageModel(LargeLanguageModel):
                     en_US="The plugin currently forwards this parameter as a top-level field. OpenAI official docs do not yet clearly state that it is restricted by reasoning effort in the same way as temperature/top_p.",
                 ),
             ),
+            ParameterRule(
+                name="max_tokens",
+                use_template="max_tokens",
+            ),
+            ParameterRule(
+                name="response_format",
+                label=I18nObject(zh_Hans="回复格式", en_US="Response Format"),
+                type=ParameterType.STRING,
+                help=I18nObject(
+                    zh_Hans="指定模型必须输出的格式。",
+                    en_US="Specifies the output format the model must follow.",
+                ),
+                options=response_format_options,
+            ),
+            ParameterRule(
+                name="json_schema",
+                use_template="json_schema",
+            ),
+        ]
+
+        if not self._is_gpt_5_4_model(model):
+            return parameter_rules
+
+        return parameter_rules + [
             ParameterRule(
                 name="reasoning_effort",
                 label=I18nObject(zh_Hans="推理努力程度", en_US="Reasoning Effort"),
