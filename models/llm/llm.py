@@ -300,6 +300,7 @@ class Sub2apiPluginLargeLanguageModel(LargeLanguageModel):
                 credentials=credentials,
                 prompt_messages=prompt_messages,
                 response_lines=self._iter_sse_lines(response),
+                stop=stop,
             )
 
         return self._parse_responses_response(
@@ -307,6 +308,7 @@ class Sub2apiPluginLargeLanguageModel(LargeLanguageModel):
             credentials=credentials,
             prompt_messages=prompt_messages,
             response=cast(dict[str, object], response),
+            stop=stop,
         )
 
     def _create_responses_client(self, credentials: dict[str, object]) -> _ResponsesClientProtocol:
@@ -326,12 +328,16 @@ class Sub2apiPluginLargeLanguageModel(LargeLanguageModel):
         credentials: dict[str, object],
         prompt_messages: list[PromptMessage],
         response: dict[str, object],
+        stop: Optional[list[str]] = None,
     ) -> LLMResult:
         """解析非流式 Responses 响应，提取 assistant 文本、tool call 与 usage。"""
 
         self._raise_for_terminal_response_error(response)
         assistant_prompt_message = AssistantPromptMessage(
-            content=self._extract_responses_output_text(cast(list[object], response.get("output", []))),
+            content=self._apply_stop_tokens(
+                self._extract_responses_output_text(cast(list[object], response.get("output", []))),
+                stop,
+            ),
             tool_calls=self._extract_responses_output_tool_calls(cast(list[object], response.get("output", []))),
         )
         usage = cast(dict[str, object], response.get("usage", {}))
@@ -355,6 +361,7 @@ class Sub2apiPluginLargeLanguageModel(LargeLanguageModel):
         credentials: dict[str, object],
         prompt_messages: list[PromptMessage],
         response_lines: Iterable[str],
+        stop: Optional[list[str]] = None,
     ) -> Generator[LLMResultChunk, None, None]:
         """按状态机解析 Responses SSE，只在文本增量与完整 tool call 可用时产出 chunk。"""
 
@@ -362,6 +369,8 @@ class Sub2apiPluginLargeLanguageModel(LargeLanguageModel):
         response_id: Optional[str] = None
         usage_payload: dict[str, object] = {}
         pending_tool_calls: dict[str, Sub2apiPluginLargeLanguageModel._ResponsesPendingToolCall] = {}
+        pending_text = ""
+        stop_reached = False
 
         for event in self._iter_sse_events(response_lines):
             event_type = cast(str, event.get("type", ""))
@@ -389,9 +398,22 @@ class Sub2apiPluginLargeLanguageModel(LargeLanguageModel):
 
             if event_type == "response.output_text.delta":
                 delta_text = cast(str, event.get("delta") or "")
-                if delta_text:
-                    yield self._build_chunk(model, prompt_messages, index, delta_text, [], None, cast(Optional[str], event.get("item_id")))
-                    index += 1
+                if delta_text and not stop_reached:
+                    emitted_text, pending_text, stop_reached = self._consume_stream_text_with_stop(
+                        pending_text + delta_text,
+                        stop,
+                    )
+                    if emitted_text:
+                        yield self._build_chunk(
+                            model,
+                            prompt_messages,
+                            index,
+                            emitted_text,
+                            [],
+                            None,
+                            cast(Optional[str], event.get("item_id")),
+                        )
+                        index += 1
                 continue
 
             if event_type == "response.output_text.done":
@@ -454,6 +476,18 @@ class Sub2apiPluginLargeLanguageModel(LargeLanguageModel):
                 )
                 self._raise_for_terminal_response_error(response_payload)
                 if event_type == "response.completed":
+                    if pending_text and not stop_reached:
+                        yield self._build_chunk(
+                            model,
+                            prompt_messages,
+                            index,
+                            pending_text,
+                            [],
+                            None,
+                            response_id,
+                        )
+                        index += 1
+                        pending_text = ""
                     yield self._build_chunk(
                         model,
                         prompt_messages,
@@ -564,6 +598,55 @@ class Sub2apiPluginLargeLanguageModel(LargeLanguageModel):
                     text_parts.append(cast(str, part["text"]))
         return "".join(text_parts)
 
+    def _apply_stop_tokens(self, text: str, stop: Optional[list[str]]) -> str:
+        stop_tokens = [token for token in stop or [] if token]
+        if not stop_tokens:
+            return text
+
+        stop_indexes: list[int] = []
+        for token in stop_tokens:
+            token_index = text.find(token)
+            if token_index >= 0:
+                stop_indexes.append(token_index)
+
+        if not stop_indexes:
+            return text
+
+        return text[: min(stop_indexes)]
+
+    def _consume_stream_text_with_stop(
+        self,
+        pending_text: str,
+        stop: Optional[list[str]],
+    ) -> tuple[str, str, bool]:
+        stop_tokens = [token for token in stop or [] if token]
+        if not stop_tokens:
+            return pending_text, "", False
+
+        first_stop_index: Optional[int] = None
+        for token in stop_tokens:
+            token_index = pending_text.find(token)
+            if token_index < 0:
+                continue
+            if first_stop_index is None or token_index < first_stop_index:
+                first_stop_index = token_index
+
+        if first_stop_index is not None:
+            return pending_text[:first_stop_index], "", True
+
+        max_overlap = 0
+        for token in stop_tokens:
+            longest_prefix = min(len(pending_text), len(token) - 1)
+            for prefix_length in range(longest_prefix, 0, -1):
+                if pending_text.endswith(token[:prefix_length]):
+                    max_overlap = max(max_overlap, prefix_length)
+                    break
+
+        if max_overlap == 0:
+            return pending_text, "", False
+
+        return pending_text[:-max_overlap], pending_text[-max_overlap:], False
+
     def _extract_responses_output_tool_calls(
         self,
         output_items: list[object],
@@ -661,9 +744,6 @@ class Sub2apiPluginLargeLanguageModel(LargeLanguageModel):
 
         if "max_tokens" in payload:
             payload["max_output_tokens"] = payload.pop("max_tokens")
-
-        if stop:
-            payload["stop"] = stop
 
         del user
 

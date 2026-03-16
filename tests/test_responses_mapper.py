@@ -72,7 +72,6 @@ def test_mapper_translates_prompt_messages_and_tools_into_responses_payload() ->
         "stream": True,
         "temperature": 0.3,
         "max_output_tokens": 256,
-        "stop": ["STOP"],
         "tools": [
             {
                 "type": "function",
@@ -128,6 +127,30 @@ def test_mapper_translates_prompt_messages_and_tools_into_responses_payload() ->
     assert "instructions" not in payload
     assert "previous_response_id" not in payload
     assert "user" not in payload
+
+
+def test_mapper_does_not_forward_stop_to_responses_payload() -> None:
+    """确认 Responses transport 不会向上游透传 Chat Completions 风格的 stop。"""
+
+    llm = Sub2apiPluginLargeLanguageModel([])
+    payload = llm.build_responses_request_payload(
+        model="gpt-4.1-mini",
+        credentials={},
+        prompt_messages=[UserPromptMessage(content="hello")],
+        model_parameters={"max_tokens": 32},
+        tools=None,
+        stop=["Observation:"],
+        stream=True,
+        user=None,
+    )
+
+    assert payload == {
+        "model": "gpt-4.1-mini",
+        "stream": True,
+        "max_output_tokens": 32,
+        "input": [{"role": "user", "content": [{"type": "input_text", "text": "hello"}]}],
+    }
+    assert "stop" not in payload
 
 
 def test_mapper_always_uses_dify_model_argument() -> None:

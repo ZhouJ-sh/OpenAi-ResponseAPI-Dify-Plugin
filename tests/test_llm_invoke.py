@@ -127,6 +127,50 @@ def test_invoke_calls_responses_api_without_previous_response_id() -> None:
     ]
 
 
+def test_invoke_enforces_stop_locally_for_non_stream_responses() -> None:
+    """确认非流式 Responses 输出会在本地 stop token 处截断。"""
+
+    llm = Sub2apiPluginLargeLanguageModel([])
+    client = _FakeResponsesClient(
+        {
+            "id": "resp_test",
+            "model": "gpt-4.1-mini",
+            "status": "completed",
+            "output": [
+                {
+                    "id": "msg_test",
+                    "type": "message",
+                    "role": "assistant",
+                    "content": [{"type": "output_text", "text": 'Thought: ok\nAction:\n{"action":"Final Answer","action_input":"hi"}\nObservation: should not leak'}],
+                }
+            ],
+            "usage": {"input_tokens": 2, "output_tokens": 8, "total_tokens": 10},
+        }
+    )
+    llm._create_responses_client = lambda credentials: client  # type: ignore[method-assign]
+
+    result = cast(
+        _LLMResultProtocol,
+        cast(
+            object,
+            llm._invoke(
+                model="gpt-4.1-mini",
+                credentials={"endpoint_url": "https://example.com/v1", "api_key": "test-key"},
+                prompt_messages=[UserPromptMessage(content="hello")],
+                model_parameters={},
+                tools=None,
+                stop=["Observation:"],
+                stream=False,
+                user=None,
+            ),
+        ),
+    )
+
+    assert result.message.content == 'Thought: ok\nAction:\n{"action":"Final Answer","action_input":"hi"}\n'
+    assert "Observation:" not in result.message.content
+    assert "stop" not in client.calls[0]
+
+
 def test_invoke_streams_responses_chunks_with_mock_client(
     responses_stream_fixture: str,
 ) -> None:
@@ -229,6 +273,48 @@ def test_invoke_stream_tolerates_response_in_progress_event() -> None:
 
     assert [chunk.delta.message.content for chunk in chunks[:-1]] == ["hello"]
     assert chunks[-1].delta.finish_reason == "stop"
+
+
+def test_invoke_enforces_stop_locally_for_streamed_responses() -> None:
+    """确认流式 Responses 在 stop token 跨 delta 时也不会泄漏 stop 文本。"""
+
+    llm = Sub2apiPluginLargeLanguageModel([])
+    client = _FakeResponsesClient(
+        "\n".join(
+            [
+                'data: {"type":"response.created","response":{"id":"resp_test","model":"gpt-4.1-mini","status":"in_progress"}}',
+                'data: {"type":"response.output_text.delta","item_id":"msg_test","delta":"Thought: ok\\nAction:\\n"}',
+                'data: {"type":"response.output_text.delta","item_id":"msg_test","delta":"{\\"action\\":\\"Final Answer\\",\\"action_input\\":\\"hi\\"}\\nObser"}',
+                'data: {"type":"response.output_text.delta","item_id":"msg_test","delta":"vation: should not leak"}',
+                'data: {"type":"response.completed","response":{"id":"resp_test","model":"gpt-4.1-mini","status":"completed","usage":{"input_tokens":3,"output_tokens":7,"total_tokens":10}}}',
+                "data: [DONE]",
+            ]
+        )
+    )
+    llm._create_responses_client = lambda credentials: client  # type: ignore[method-assign]
+
+    chunks = list(
+        cast(
+            Generator[LLMResultChunk, None, None],
+            llm._invoke(
+                model="gpt-4.1-mini",
+                credentials={"endpoint_url": "https://example.com/v1", "api_key": "test-key"},
+                prompt_messages=[UserPromptMessage(content="hello")],
+                model_parameters={},
+                tools=None,
+                stop=["Observation:"],
+                stream=True,
+                user=None,
+            ),
+        )
+    )
+
+    streamed_text = "".join(chunk.delta.message.content for chunk in chunks[:-1])
+    assert streamed_text == 'Thought: ok\nAction:\n{"action":"Final Answer","action_input":"hi"}\n'
+    assert "Observation:" not in streamed_text
+    assert chunks[-1].delta.finish_reason == "stop"
+    assert chunks[-1].delta.usage is not None
+    assert "stop" not in client.calls[0]
 
 
 def test_invoke_rewrites_tool_result_follow_up_for_sub2api_compatibility() -> None:
